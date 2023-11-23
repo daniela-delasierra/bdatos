@@ -4,7 +4,9 @@ const REDIS_URI = process.env.REDIS_URI || 'redis://localhost:6379';
 class RedisSingleton {
   constructor() {
     if (!RedisSingleton.instance) {
-      RedisSingleton.instance = redis.createClient(REDIS_URI);
+      RedisSingleton.instance = redis.createClient({
+        url: REDIS_URI,
+      });
       RedisSingleton.instance.connect().catch((err) => {
         console.error('Redis connection error:', err);
       });
