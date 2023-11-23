@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:6.2.6
+    networks:
+      - app-network
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    networks:
+      - app-network
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
+  neo4j:
+    image: neo4j:latest
+    environment:
+      NEO4J_AUTH: neo4j/nosql2023
+    networks:
+      - app-network
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+
+networks:
+  app-network:
+    driver: bridge
