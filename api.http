@@ -4,13 +4,13 @@ Content-Type: application/json
 {
     "nombre": "daniela",
     "apellido": "de la Sierra",
-    "ci": "47485475",
+    "ci": "47485476",
     "edad": 27
 }
 
 ###
 
-POST http://localhost:3001/domicilio/47485475
+POST http://localhost:3001/domicilio/47485476
 Content-Type: application/json
 
 {
@@ -23,5 +23,5 @@ Content-Type: application/json
 
 ###
 
-GET http://localhost:3001/domicilios/47485475
+GET http://localhost:3001/domicilios/47485476
 Content-Type: application/json

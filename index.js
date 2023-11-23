@@ -84,20 +84,22 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
 
 app.get('/domicilios/:ci', async (req, res) => {
   const session = neo4j.driver.session();
+  const ci = req.params.ci;
   const cacheKey = `domicilios:${ci}`;
   const cachedData = await redisClient.get(cacheKey);
-
   if (cachedData) {
+    console.log('seee')
     return res.status(200).json(JSON.parse(cachedData));
   } else {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.pageSize) || 10;
-      const skip = (page - 1) * pageSize;
-      const ci = req.params.ci;
+      const page = neo4jModule.types.Integer.fromValue(parseInt(req.query.page) || 1);
+      const pageSize = neo4jModule.types.Integer.fromValue(parseInt(req.query.pageSize) || 10);
+      const skip = neo4jModule.types.Integer.fromValue(page.subtract(1).multiply(pageSize));
+      const date = new Date();
+      const created = neo4jModule.types.Date.fromStandardDate(date)
       const result = await session.run(
-        'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.fechaCreacion DESC SKIP $skip LIMIT $limit',
-        { ci, skip, limit: pageSize }
+        'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.created DESC SKIP $skip LIMIT $limit',
+        { ci, created, skip, limit: pageSize }
       );
       if (result.records.length === 0) {
         res
@@ -107,7 +109,7 @@ app.get('/domicilios/:ci', async (req, res) => {
         const domicilios = result.records.map(
           (record) => record.get('d').properties
         );
-        redisClient.set(cacheKey, 3600, JSON.stringify(domicilios)); // Cache for 1 hour
+        redisClient.set(cacheKey, JSON.stringify(domicilios)); // Cache for 1 hour
         res.status(200).json(domicilios);
       }
     } catch (error) {
@@ -166,7 +168,7 @@ app.get('/domicilios', async (req, res) => {
           domicilios: domicilios,
           persona: resultPersona,
         };
-        await redisClient.set(cacheKey, 3600, JSON.stringify(response)); // Cache for 1 hour
+        await redisClient.set(cacheKey, JSON.stringify(response)); // Cache for 1 hour
         res.status(200).json(response);
       } catch (error) {
         res.status(500).send(error.message);
