@@ -66,7 +66,7 @@
 2. Instalar Docker.
 3. Añadir un archivo `.env` en la carpeta raíz del proyecto (solicitarlo si es necesario).
 
-NEO4J_PASS="nosql2023"
+`NEO4J_PASS="nosql2023"
 NEO4J_USER="neo4j"
 
 # DOCKER
@@ -79,7 +79,7 @@ NEO4J_USER="neo4j"
 
 NEO4J_HOST=neo4j://neo4j:7687
 REDIS_URI=redis://redis:6379
-PORT=3000
+PORT=3000`
 
 4. Ejecutar el comando `docker-compose up -d`.
 5. Acceder a la aplicación en `http://localhost:3000`.
