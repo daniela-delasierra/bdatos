@@ -33,7 +33,7 @@ app.post('/persona', jsonParser, async (req, res) => {
     const persona = req.body;
     console.log(persona.ci);
     const result = await session.run(
-      'MATCH (p:Persona {ci: TOINTEGER($ci)}) RETURN p',
+      'MATCH (p:Persona {ci: $ci}) RETURN p',
       {
         ci: persona.ci,
       }
@@ -75,14 +75,15 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
         .status(402)
         .send('No existe una persona con la cédula aportada como parámetro');
     } else {
-      const notRequiredFields = '';
+      let notRequiredFields = '';
       if (domicilio.padron) notRequiredFields += ', padron: $padron';
       if (domicilio.ruta) notRequiredFields += ', ruta: $ruta';
       if (domicilio.km) notRequiredFields += ', km: $km';
       if (domicilio.letra) notRequiredFields += ', letra: $letra';
       if (domicilio.barrio) notRequiredFields += ', barrio: $barrio';
+      if (domicilio.apartamento) notRequiredFields += ', apartamento: $apartamento';
       await session.run(
-        `MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, apartamento: $apartamento, created: $created ${notRequiredFields}})`,
+        `MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, created: $created ${notRequiredFields}})`,
         { ci, created, ...domicilio }
       );
       deleteCacheByPattern('domicilios:*').catch(console.error);
@@ -96,7 +97,7 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
   }
 });
 
-app.get('/domicilios/:ci', async (req, res) => {
+app.get('/domicilio/:ci', async (req, res) => {
   const session = neo4j.driver.session();
   const ci = req.params.ci;
   const cacheKey = `domicilios:${ci}`;
@@ -140,7 +141,7 @@ app.get('/domicilios/:ci', async (req, res) => {
   }
 });
 
-app.get('/domicilios', async (req, res) => {
+app.get('/domicilio', async (req, res) => {
   const { barrio, localidad, departamento } = req.query;
   const cacheKey = `domicilios:all:${barrio}:${localidad}:${departamento}`;
 
@@ -172,21 +173,18 @@ app.get('/domicilios', async (req, res) => {
           filterConditions.length > 0
             ? 'WHERE ' + filterConditions.join(' AND ')
             : '';
-        const query = `MATCH (d:Domicilio) ${filterConditionStr} RETURN d`;
-        const result = await session.run(query, queryParams);
 
-        const domicilios = result.records.map(
-          (record) => record.get('d').properties
-        );
-
-        const resultPersona = await session.run(
-          'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.fechaCreacion DESC SKIP $skip LIMIT $limit',
-          { ci, skip, limit: pageSize }
-        );
+            const query = `MATCH (d:Domicilio) ${filterConditionStr} OPTIONAL MATCH (d)<-[:RESIDE_EN]-(p:Persona) RETURN d, collect(p) as personas`;
+            const result = await session.run(query, queryParams);
+    
+            const domicilios = result.records.map(record => {
+              const domicilio = record.get('d').properties;
+              domicilio.personas = record.get('personas').map(persona => persona.properties);
+              return domicilio;
+            });
 
         const response = {
-          domicilios: domicilios,
-          persona: resultPersona,
+          domicilios
         };
         await redisClient.set(cacheKey, JSON.stringify(response)); // Cache for 1 hour
         res.status(200).json(response);
