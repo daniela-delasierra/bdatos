@@ -78,8 +78,8 @@ NEO4J_USER="neo4j"
 
 # LOCAL
 
-NEO4J_HOST=neo4j://neo4j:7687
-REDIS_URI=redis://redis:6379
+NEO4J_HOST=neo4j://localhost:7687
+REDIS_URI=redis://localhost:6379
 PORT=3000
 ```
 
