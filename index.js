@@ -102,6 +102,7 @@ app.get('/domicilios/:ci', async (req, res) => {
   const cacheKey = `domicilios:${ci}`;
   const cachedData = await redisClient.get(cacheKey);
   if (cachedData) {
+<<<<<<< HEAD
     console.log('seee');
     return res.status(200).json(JSON.parse(cachedData));
   } else {
@@ -117,6 +118,17 @@ app.get('/domicilios/:ci', async (req, res) => {
       );
       const date = new Date();
       const created = neo4jModule.types.Date.fromStandardDate(date);
+=======
+    console.log('seee')
+    return res.status(200).json(JSON.parse(cachedData));
+  } else {
+    try {
+      const page = neo4jModule.types.Integer.fromValue(parseInt(req.query.page) || 1);
+      const pageSize = neo4jModule.types.Integer.fromValue(parseInt(req.query.pageSize) || 10);
+      const skip = neo4jModule.types.Integer.fromValue(page.subtract(1).multiply(pageSize));
+      const date = new Date();
+      const created = neo4jModule.types.Date.fromStandardDate(date)
+>>>>>>> eef8dc9 (some fixes)
       const result = await session.run(
         'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.created DESC SKIP $skip LIMIT $limit',
         { ci, created, skip, limit: pageSize }
