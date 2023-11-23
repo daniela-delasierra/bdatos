@@ -11,6 +11,18 @@ const jsonParser = bodyParser.json();
 
 const PORT = process.env.PORT ?? 3000;
 
+async function deleteCacheByPattern(pattern) {
+  const keys = await redisClient.keys(pattern);
+  console.log({ keys });
+  if (keys.length === 0) return;
+
+  const multi = redisClient.multi();
+  keys.forEach((key) => {
+    multi.del(key);
+  });
+  await multi.exec();
+}
+
 app.post('/persona', jsonParser, async (req, res) => {
   const session = neo4j.driver.session();
   try {
@@ -73,6 +85,8 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
         `MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, apartamento: $apartamento, created: $created ${notRequiredFields}})`,
         { ci, created, ...domicilio }
       );
+      deleteCacheByPattern('domicilios:*').catch(console.error);
+
       res.status(200).send('Domicilio agregado');
     }
   } catch (error) {
