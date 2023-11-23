@@ -9,7 +9,7 @@ const ONLY_NUMBERS_REGEX = /^[0-9]+$/;
 const app = express();
 const jsonParser = bodyParser.json();
 
-const PORT = process.env.PORT ?? 3001;
+const PORT = process.env.PORT ?? 3000;
 
 app.post('/persona', jsonParser, async (req, res) => {
   const session = neo4j.driver.session();
@@ -88,15 +88,21 @@ app.get('/domicilios/:ci', async (req, res) => {
   const cacheKey = `domicilios:${ci}`;
   const cachedData = await redisClient.get(cacheKey);
   if (cachedData) {
-    console.log('seee')
+    console.log('seee');
     return res.status(200).json(JSON.parse(cachedData));
   } else {
     try {
-      const page = neo4jModule.types.Integer.fromValue(parseInt(req.query.page) || 1);
-      const pageSize = neo4jModule.types.Integer.fromValue(parseInt(req.query.pageSize) || 10);
-      const skip = neo4jModule.types.Integer.fromValue(page.subtract(1).multiply(pageSize));
+      const page = neo4jModule.types.Integer.fromValue(
+        parseInt(req.query.page) || 1
+      );
+      const pageSize = neo4jModule.types.Integer.fromValue(
+        parseInt(req.query.pageSize) || 10
+      );
+      const skip = neo4jModule.types.Integer.fromValue(
+        page.subtract(1).multiply(pageSize)
+      );
       const date = new Date();
-      const created = neo4jModule.types.Date.fromStandardDate(date)
+      const created = neo4jModule.types.Date.fromStandardDate(date);
       const result = await session.run(
         'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.created DESC SKIP $skip LIMIT $limit',
         { ci, created, skip, limit: pageSize }
