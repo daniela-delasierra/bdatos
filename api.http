@@ -1,9 +1,27 @@
-POST http://localhost:1234/persona
+POST http://localhost:3001/persona
 Content-Type: application/json
 
 {
     "nombre": "daniela",
     "apellido": "de la Sierra",
-    "ci": 47485471,
+    "ci": "47485476",
     "edad": 27
 }
+
+###
+
+POST http://localhost:3001/domicilio/47485476
+Content-Type: application/json
+
+{
+    "departamento": "Montevideo",
+    "localidad": "Tres Cruces",
+    "calle": "Avda. Uruguay",
+    "nro": 1234,
+    "apartamento": 1
+}
+
+###
+
+GET http://localhost:3001/domicilios/47485476
+Content-Type: application/json
