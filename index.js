@@ -1,25 +1,31 @@
 const express = require('express');
-var bodyParser = require('body-parser');
+const bodyParser = require('body-parser');
 const neo4j = require('./neo4j');
+const neo4jModule = require('neo4j-driver');
 const schema = require('./schemas/schema');
 const redisClient = require('./redisClient');
 
+const ONLY_NUMBERS_REGEX = /^[0-9]+$/;
 const app = express();
-var jsonParser = bodyParser.json();
+const jsonParser = bodyParser.json();
 
-const PORT = process.env.PORT ?? 3000;
+const PORT = process.env.PORT ?? 3001;
 
 app.post('/persona', jsonParser, async (req, res) => {
   const session = neo4j.driver.session();
   try {
     const { error } = schema.personaSchema.validate(req.body);
-    if (error) {
+    if (error || !ONLY_NUMBERS_REGEX.test(req.body.ci)) {
       return res.status(400).send(error.details[0].message);
     }
     const persona = req.body;
-    const result = await session.run('MATCH (p:Persona {ci: $ci}) RETURN p', {
-      ci: persona.ci,
-    });
+    console.log(persona.ci);
+    const result = await session.run(
+      'MATCH (p:Persona {ci: TOINTEGER($ci)}) RETURN p',
+      {
+        ci: persona.ci,
+      }
+    );
 
     if (result.records.length > 0) {
       res.status(401).send('La persona ya existe');
@@ -37,7 +43,7 @@ app.post('/persona', jsonParser, async (req, res) => {
   }
 });
 
-app.post('/domicilio/:ci', bodyParser, async (req, res) => {
+app.post('/domicilio/:ci', jsonParser, async (req, res) => {
   const session = neo4j.driver.session();
   try {
     const { error } = schema.direccionSchema.validate(req.body);
@@ -45,6 +51,8 @@ app.post('/domicilio/:ci', bodyParser, async (req, res) => {
       return res.status(400).send(error.details[0].message);
     }
     const ci = req.params.ci;
+    const today = new Date();
+    const created = neo4jModule.types.Date.fromStandardDate(today);
     const domicilio = req.body;
     const result = await session.run('MATCH (p:Persona {ci: $ci}) RETURN p', {
       ci,
@@ -55,9 +63,15 @@ app.post('/domicilio/:ci', bodyParser, async (req, res) => {
         .status(402)
         .send('No existe una persona con la cédula aportada como parámetro');
     } else {
+      const notRequiredFields = '';
+      if (domicilio.padron) notRequiredFields += ', padron: $padron';
+      if (domicilio.ruta) notRequiredFields += ', ruta: $ruta';
+      if (domicilio.km) notRequiredFields += ', km: $km';
+      if (domicilio.letra) notRequiredFields += ', letra: $letra';
+      if (domicilio.barrio) notRequiredFields += ', barrio: $barrio';
       await session.run(
-        'MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, apartamento: $apartamento, padron: $padron, ruta: $ruta, km: $km, letra: $letra, barrio: $barrio})',
-        { ci, ...domicilio }
+        `MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, apartamento: $apartamento, created: $created ${notRequiredFields}})`,
+        { ci, created, ...domicilio }
       );
       res.status(200).send('Domicilio agregado');
     }
@@ -69,46 +83,41 @@ app.post('/domicilio/:ci', bodyParser, async (req, res) => {
 });
 
 app.get('/domicilios/:ci', async (req, res) => {
-  const ci = req.params.ci;
+  const session = neo4j.driver.session();
   const cacheKey = `domicilios:${ci}`;
+  const cachedData = await redisClient.get(cacheKey);
 
-  redisClient.get(cacheKey, async (err, data) => {
-    if (err) throw err;
-
-    if (data) {
-      return res.status(200).json(JSON.parse(data));
-    } else {
-      const session = neo4j.driver.session();
-      try {
-        const page = parseInt(req.query.page) || 1;
-        const pageSize = parseInt(req.query.pageSize) || 10;
-        const skip = (page - 1) * pageSize;
-        const ci = req.params.ci;
-        const result = await session.run(
-          'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.fechaCreacion DESC SKIP $skip LIMIT $limit',
-          { ci, skip, limit: pageSize }
+  if (cachedData) {
+    return res.status(200).json(JSON.parse(cachedData));
+  } else {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const pageSize = parseInt(req.query.pageSize) || 10;
+      const skip = (page - 1) * pageSize;
+      const ci = req.params.ci;
+      const result = await session.run(
+        'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.fechaCreacion DESC SKIP $skip LIMIT $limit',
+        { ci, skip, limit: pageSize }
+      );
+      if (result.records.length === 0) {
+        res
+          .status(402)
+          .send('No se han encontrado domicilios para la cédula proporcionada');
+      } else {
+        const domicilios = result.records.map(
+          (record) => record.get('d').properties
         );
-        if (result.records.length === 0) {
-          res
-            .status(402)
-            .send(
-              'No se han encontrado domicilios para la cédula proporcionada'
-            );
-        } else {
-          const domicilios = result.records.map(
-            (record) => record.get('d').properties
-          );
-          redisClient.set(cacheKey, 3600, JSON.stringify(domicilios)); // Cache for 1 hour
-          res.status(200).json(domicilios);
-        }
-      } catch (error) {
-        res.status(500).send(error.message);
-      } finally {
-        await session.close();
+        redisClient.set(cacheKey, 3600, JSON.stringify(domicilios)); // Cache for 1 hour
+        res.status(200).json(domicilios);
       }
+    } catch (error) {
+      res.status(500).send(error.message);
+    } finally {
+      await session.close();
     }
-  });
+  }
 });
+
 app.get('/domicilios', async (req, res) => {
   const { barrio, localidad, departamento } = req.query;
   const cacheKey = `domicilios:all:${barrio}:${localidad}:${departamento}`;
@@ -147,8 +156,18 @@ app.get('/domicilios', async (req, res) => {
         const domicilios = result.records.map(
           (record) => record.get('d').properties
         );
-        await redisClient.set(cacheKey, 3600, JSON.stringify(domicilios)); // Cache for 1 hour
-        res.status(200).json(domicilios);
+
+        const resultPersona = await session.run(
+          'MATCH (p:Persona {ci: $ci})-[:RESIDE_EN]->(d:Domicilio) RETURN d ORDER BY d.fechaCreacion DESC SKIP $skip LIMIT $limit',
+          { ci, skip, limit: pageSize }
+        );
+
+        const response = {
+          domicilios: domicilios,
+          persona: resultPersona,
+        };
+        await redisClient.set(cacheKey, 3600, JSON.stringify(response)); // Cache for 1 hour
+        res.status(200).json(response);
       } catch (error) {
         res.status(500).send(error.message);
       } finally {
