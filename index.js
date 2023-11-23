@@ -96,7 +96,7 @@ app.get('/domicilios/:ci', async (req, res) => {
 });
 
 app.get('/domicilios', async (req, res) => {
-  const session = driver.session();
+  const session = neo4j.driver.session();
   try {
     const { barrio, localidad, departamento } = req.query;
     const filterCondition = 'WHERE ';
