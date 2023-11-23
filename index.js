@@ -99,22 +99,29 @@ app.get('/domicilios', async (req, res) => {
   const session = neo4j.driver.session();
   try {
     const { barrio, localidad, departamento } = req.query;
-    const filterCondition = 'WHERE ';
+    let filterConditions = [];
+    let queryParams = {};
+
     if (barrio) {
-      filterCondition += `d.barrio = $barrio`;
+      filterConditions.push(`d.barrio = $barrio`);
+      queryParams.barrio = barrio;
     }
     if (localidad) {
-      filterCondition += `d.localidad = $localidad`;
+      filterConditions.push(`d.localidad = $localidad`);
+      queryParams.localidad = localidad;
     }
     if (departamento) {
-      filterCondition += `d.departamento =  $departamento`;
+      filterConditions.push(`d.departamento = $departamento`);
+      queryParams.departamento = departamento;
     }
-    const query = `MATCH (d:Domicilio) ${filterCondition} RETURN d`; // Construye la consulta basada en los criterios
-    const result = await session.run(query, {
-      barrio,
-      localidad,
-      departamento,
-    });
+
+    let filterConditionStr =
+      filterConditions.length > 0
+        ? 'WHERE ' + filterConditions.join(' AND ')
+        : '';
+    const query = `MATCH (d:Domicilio) ${filterConditionStr} RETURN d`; // Construye la consulta basada en los criterios
+    console.log({ query });
+    const result = await session.run(query, queryParams);
 
     const domicilios = result.records.map(
       (record) => record.get('d').properties
