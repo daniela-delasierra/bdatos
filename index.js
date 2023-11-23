@@ -9,7 +9,7 @@ const ONLY_NUMBERS_REGEX = /^[0-9]+$/;
 const app = express();
 const jsonParser = bodyParser.json();
 
-const PORT = process.env.PORT ?? 3001;
+const PORT = process.env.PORT ?? 3000;
 
 async function deleteCacheByPattern(pattern) {
   const keys = await redisClient.keys(pattern);
