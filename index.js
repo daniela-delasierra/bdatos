@@ -75,7 +75,7 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
         .status(402)
         .send('No existe una persona con la cédula aportada como parámetro');
     } else {
-      const notRequiredFields = '';
+      let notRequiredFields = '';
       if (domicilio.padron) notRequiredFields += ', padron: $padron';
       if (domicilio.ruta) notRequiredFields += ', ruta: $ruta';
       if (domicilio.km) notRequiredFields += ', km: $km';
