@@ -1,0 +1,9 @@
+POST http://localhost:1234/persona
+Content-Type: application/json
+
+{
+    "nombre": "daniela",
+    "apellido": "de la Sierra",
+    "ci": 47485471,
+    "edad": 27
+}
