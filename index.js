@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const neo4j = require('./neo4j');
@@ -32,12 +34,9 @@ app.post('/persona', jsonParser, async (req, res) => {
     }
     const persona = req.body;
     console.log(persona.ci);
-    const result = await session.run(
-      'MATCH (p:Persona {ci: $ci}) RETURN p',
-      {
-        ci: persona.ci,
-      }
-    );
+    const result = await session.run('MATCH (p:Persona {ci: $ci}) RETURN p', {
+      ci: persona.ci,
+    });
 
     if (result.records.length > 0) {
       res.status(401).send('La persona ya existe');
@@ -81,7 +80,8 @@ app.post('/domicilio/:ci', jsonParser, async (req, res) => {
       if (domicilio.km) notRequiredFields += ', km: $km';
       if (domicilio.letra) notRequiredFields += ', letra: $letra';
       if (domicilio.barrio) notRequiredFields += ', barrio: $barrio';
-      if (domicilio.apartamento) notRequiredFields += ', apartamento: $apartamento';
+      if (domicilio.apartamento)
+        notRequiredFields += ', apartamento: $apartamento';
       await session.run(
         `MATCH (p:Persona {ci: $ci}) CREATE (p)-[:RESIDE_EN]->(:Domicilio {departamento: $departamento, localidad: $localidad, calle: $calle, nro: $nro, created: $created ${notRequiredFields}})`,
         { ci, created, ...domicilio }
@@ -174,17 +174,19 @@ app.get('/domicilio', async (req, res) => {
             ? 'WHERE ' + filterConditions.join(' AND ')
             : '';
 
-            const query = `MATCH (d:Domicilio) ${filterConditionStr} OPTIONAL MATCH (d)<-[:RESIDE_EN]-(p:Persona) RETURN d, collect(p) as personas`;
-            const result = await session.run(query, queryParams);
-    
-            const domicilios = result.records.map(record => {
-              const domicilio = record.get('d').properties;
-              domicilio.personas = record.get('personas').map(persona => persona.properties);
-              return domicilio;
-            });
+        const query = `MATCH (d:Domicilio) ${filterConditionStr} OPTIONAL MATCH (d)<-[:RESIDE_EN]-(p:Persona) RETURN d, collect(p) as personas`;
+        const result = await session.run(query, queryParams);
+
+        const domicilios = result.records.map((record) => {
+          const domicilio = record.get('d').properties;
+          domicilio.personas = record
+            .get('personas')
+            .map((persona) => persona.properties);
+          return domicilio;
+        });
 
         const response = {
-          domicilios
+          domicilios,
         };
         await redisClient.set(cacheKey, JSON.stringify(response)); // Cache for 1 hour
         res.status(200).json(response);
